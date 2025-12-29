@@ -32,22 +32,22 @@ def predict():
         co = float(data['co'])
         mn = float(data['mn'])
 
-        # ✅ Check sum
+        
         total = ni + co + mn
         if abs(total - 100) > 0.01:
             return jsonify({'error': 'Total must be 100%'}), 400
 
-        # ✅ Prediction (use your model later)
+        
         prediction = 60 + (ni * 0.1) - (co * 0.05) + (mn * 0.08)
         accuracy = max(0, min(100, prediction))  # keep within [0,100]
 
-        # ✅ Baseline (1:1:1 = 33.33 each)
+        
         baseline_pred = 60 + (33.3 * 0.1) - (33.3 * 0.05) + (33.3 * 0.08)
         baseline = max(0, min(100, baseline_pred))
 
         confidence = "High" if accuracy > baseline else "BEST"
 
-        # ✅ Prepare record for MongoDB
+        
         record = {
             "Ni": ni,
             "Co": co,
@@ -57,10 +57,10 @@ def predict():
             "baseline": round(baseline, 2)
         }
 
-        # ✅ Insert record into MongoDB
+        
         collection.insert_one(record)
 
-        # ✅ Return response
+        
         return jsonify({
             'accuracy': round(accuracy, 2),
             'confidence': confidence,
@@ -88,7 +88,7 @@ def retrain_model():
 
         df = pd.DataFrame(data)
 
-        # ✅ Ensure correct column names (adjust to match your dataset)
+        # ensure correct column names (adjust to match your dataset)
         X = df[["Ni", "Co", "Mn"]]
         y = df["Performance"]
 
@@ -113,7 +113,7 @@ def retrain_model():
 
         # Return metrics
         return jsonify({
-            "message": "✅ Model retrained successfully!",
+            "message": " Model retrained successfully!",
             "R2": round(r2, 3),
             "RMSE": round(rmse, 3)
         })
@@ -126,4 +126,5 @@ def retrain_model():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
 
