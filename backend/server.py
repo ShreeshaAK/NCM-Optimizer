@@ -46,7 +46,7 @@ def predict():
         baseline_pred = 60 + (33.3 * 0.1) - (33.3 * 0.05) + (33.3 * 0.08)
         baseline = max(0, min(100, baseline_pred))
 
-        confidence = "High" if accuracy > baseline else "BEST"
+        confidence = "Best" if accuracy > baseline else "High"
 
         
         record = {
