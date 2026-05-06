@@ -38,8 +38,9 @@ def predict():
             return jsonify({'error': 'Total must be 100%'}), 400
 
         
-        prediction = 60 + (ni * 0.1) - (co * 0.05) + (mn * 0.08)
-        accuracy = max(0, min(100, prediction))  # keep within [0,100]
+        # Replace the hardcoded formula with:
+        features = np.array([[ni, co, mn]])
+        prediction = global_model.predict(features)[0]  # actually uses your trained model
 
         
         baseline_pred = 60 + (33.3 * 0.1) - (33.3 * 0.05) + (33.3 * 0.08)
