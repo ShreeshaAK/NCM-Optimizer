@@ -7,8 +7,8 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 
-# Load environment variables
-load_dotenv()
+from pathlib import Path
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 # MongoDB connection
 MONGO_URI = os.getenv("MONGO_URI")
@@ -22,7 +22,6 @@ CORS(app)
 
 # Load trained model
 global_model = joblib.load("ncm_ridge_model.pkl")
-
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -40,11 +39,12 @@ def predict():
         
         # Replace the hardcoded formula with:
         features = np.array([[ni, co, mn]])
-        prediction = global_model.predict(features)[0]  # actually uses your trained model
+        prediction = global_model.predict(features)[0]
+        accuracy = max(0, min(100, round(float(prediction), 2)))
 
         
-        baseline_pred = 60 + (33.3 * 0.1) - (33.3 * 0.05) + (33.3 * 0.08)
-        baseline = max(0, min(100, baseline_pred))
+        baseline_pred = global_model.predict(np.array([[33.3, 33.3, 33.4]]))[0]
+        baseline = max(0, min(100, round(float(baseline_pred), 2)))
 
         confidence = "Best" if accuracy > baseline else "High"
 
