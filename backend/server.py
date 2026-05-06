@@ -1,26 +1,25 @@
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import joblib
 import numpy as np
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from pathlib import Path
 import os
 
-# Load environment variables
-load_dotenv()
+# Load .env relative to this file — works regardless of where you launch from
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
-# MongoDB connection
+# MongoDB Atlas connection
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
-db = client["ncm_predictor"]  # database name
-collection = db["predictions"]  # collection name
-
+db = client["ncm_predictor"]
+collection = db["predictions"]
 
 app = Flask(__name__)
 CORS(app)
 
-# Load trained model
+# Load trained Ridge model once at startup (not per request)
 global_model = joblib.load("ncm_ridge_model.pkl")
 
 
@@ -28,49 +27,51 @@ global_model = joblib.load("ncm_ridge_model.pkl")
 def predict():
     try:
         data = request.get_json()
+
         ni = float(data['ni'])
         co = float(data['co'])
         mn = float(data['mn'])
 
-        
+        # Validate: percentages must sum to 100
         total = ni + co + mn
         if abs(total - 100) > 0.01:
-            return jsonify({'error': 'Total must be 100%'}), 400
+            return jsonify({
+                'error': f'Ni + Co + Mn must equal 100%. Received: {round(total, 2)}%'
+            }), 400
 
-        
-        # Replace the hardcoded formula with:
+        # Run inference using the trained Ridge model
         features = np.array([[ni, co, mn]])
-        prediction = global_model.predict(features)[0]  # actually uses your trained model
+        prediction = global_model.predict(features)[0]
+        accuracy = max(0, min(100, round(float(prediction), 2)))
 
-        
-        baseline_pred = 60 + (33.3 * 0.1) - (33.3 * 0.05) + (33.3 * 0.08)
-        baseline = max(0, min(100, baseline_pred))
+        # Baseline: equal NCM111 composition (33.3 / 33.3 / 33.4)
+        baseline_pred = global_model.predict(np.array([[33.3, 33.3, 33.4]]))[0]
+        baseline = max(0, min(100, round(float(baseline_pred), 2)))
 
-        confidence = "High" if accuracy > baseline else "BEST"
+        # Confidence: BEST if proposed composition outperforms baseline
+        confidence = "BEST" if accuracy > baseline else "High"
 
-        
+        # Persist prediction to MongoDB Atlas
         record = {
             "Ni": ni,
             "Co": co,
             "Mn": mn,
-            "accuracy": round(accuracy, 2),
+            "accuracy": accuracy,
             "confidence": confidence,
-            "baseline": round(baseline, 2)
+            "baseline": baseline
         }
-
-        
         collection.insert_one(record)
 
-        
         return jsonify({
-            'accuracy': round(accuracy, 2),
+            'accuracy': accuracy,
             'confidence': confidence,
-            'baseline': round(baseline, 2)
+            'baseline': baseline
         })
 
     except Exception as e:
-        print("Error:", e)
+        print("Prediction error:", e)
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/retrain', methods=['POST'])
 def retrain_model():
@@ -78,44 +79,38 @@ def retrain_model():
         from sklearn.model_selection import train_test_split
         from sklearn.linear_model import Ridge
         from sklearn.metrics import r2_score, mean_squared_error
-        import numpy as np
         import pandas as pd
-        import joblib
 
-        # Fetch data from MongoDB
+        # Fetch training data from MongoDB Atlas
         data = list(db["dataset_records"].find({}, {"_id": 0}))
         if not data:
             return jsonify({"error": "No dataset found in MongoDB"}), 400
 
         df = pd.DataFrame(data)
 
-        # ensure correct column names (adjust to match your dataset)
-        X = df[["Ni", "Co", "Mn"]]
-        y = df["Performance"]
+        # Column names must match synthetic_ncm_dopant_dataset.csv
+        X = df[["ni_pct", "co_pct", "mn_pct"]]
+        y = df["predicted_accuracy"]
 
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
 
-        # Train model
         model = Ridge(alpha=1.0)
         model.fit(X_train, y_train)
 
-        # Evaluate
         y_pred = model.predict(X_test)
-        r2 = r2_score(y_test, y_pred)
+        r2   = r2_score(y_test, y_pred)
         rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 
-        # Save model
+        # Overwrite saved model and update in-memory reference
         joblib.dump(model, "ncm_ridge_model.pkl")
-
-        # Update global model variable
         global global_model
         global_model = model
 
-        # Return metrics
         return jsonify({
-            "message": " Model retrained successfully!",
-            "R2": round(r2, 3),
+            "message": "Model retrained successfully",
+            "R2":   round(r2, 3),
             "RMSE": round(rmse, 3)
         })
 
@@ -124,7 +119,5 @@ def retrain_model():
         return jsonify({"error": str(e)}), 500
 
 
-
 if __name__ == '__main__':
     app.run(debug=True)
-
