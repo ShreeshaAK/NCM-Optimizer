@@ -7,7 +7,11 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
+<<<<<<< HEAD
 # Load .env relative to this file — works regardless of where you launch from
+=======
+from pathlib import Path
+>>>>>>> 442513f08ac651e1e44529b1dab6b67333fcdb59
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 # MongoDB Atlas connection
@@ -21,7 +25,6 @@ CORS(app)
 
 # Load trained Ridge model once at startup (not per request)
 global_model = joblib.load("ncm_ridge_model.pkl")
-
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -44,12 +47,20 @@ def predict():
         prediction = global_model.predict(features)[0]
         accuracy = max(0, min(100, round(float(prediction), 2)))
 
+<<<<<<< HEAD
         # Baseline: equal NCM111 composition (33.3 / 33.3 / 33.4)
         baseline_pred = global_model.predict(np.array([[33.3, 33.3, 33.4]]))[0]
         baseline = max(0, min(100, round(float(baseline_pred), 2)))
 
         # Confidence: BEST if proposed composition outperforms baseline
         confidence = "BEST" if accuracy > baseline else "High"
+=======
+        
+        baseline_pred = global_model.predict(np.array([[33.3, 33.3, 33.4]]))[0]
+        baseline = max(0, min(100, round(float(baseline_pred), 2)))
+
+        confidence = "Best" if accuracy > baseline else "High"
+>>>>>>> 442513f08ac651e1e44529b1dab6b67333fcdb59
 
         # Persist prediction to MongoDB Atlas
         record = {
